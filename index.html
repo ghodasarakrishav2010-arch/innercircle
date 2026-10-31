@@ -20,11 +20,13 @@
   :root{--bg:#f6f1ea;--surface:#ffffff;--line:#e0d8cc;--text:#221d17;--muted:#6b6254;--accent:#9a4f12;--on-accent:#ffffff;--error:#b3261e;--ok:#1d6b31}
 }
 *{box-sizing:border-box}
-html,body{height:100%}
-body{margin:0;background:var(--bg);color:var(--text);font:16px/1.55 var(--body);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px}
-.card{width:100%;max-width:400px}
+html{height:100%}
+body{margin:0;min-height:100%;background:var(--bg);color:var(--text);font:16px/1.55 var(--body);display:flex;padding:24px}
+.card{width:100%;max-width:400px;margin:auto}
+.card.wide{max-width:520px}
 .logo{display:block;margin:0 auto 20px}
 h1{font:700 2.4rem/1.1 var(--head);text-align:center;margin:0 0 8px}
+h2{font:600 1.15rem/1.3 var(--head);margin:28px 0 10px}
 .sub{text-align:center;color:var(--muted);margin:0 0 28px}
 .tabs{display:grid;grid-template-columns:1fr 1fr;border:1px solid var(--line);border-radius:10px;overflow:hidden;margin-bottom:20px}
 .tabs button{font:inherit;font-weight:600;color:var(--muted);background:transparent;border:0;padding:10px;cursor:pointer}
@@ -35,17 +37,30 @@ input:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline
 .hint{font-size:.82rem;color:var(--muted);margin:6px 0 0}
 .go{width:100%;margin-top:22px;font:inherit;font-weight:700;color:var(--on-accent);background:var(--accent);border:0;border-radius:10px;padding:12px;cursor:pointer}
 .go:disabled{opacity:.6;cursor:wait}
-.msg{min-height:1.5em;margin:14px 0 0;font-size:.92rem}
+.msg{min-height:1.5em;margin:12px 0 0;font-size:.92rem}
 .msg.err{color:var(--error)} .msg.ok{color:var(--ok)}
 .hello{text-align:center}
-.hello .name{font:700 1.6rem var(--head)}
-.soon{margin:24px 0;padding:16px;border:1px dashed var(--line);border-radius:10px;color:var(--muted);text-align:center}
+.hello .sub{margin-bottom:4px}
+.hello .name{font:700 1.6rem var(--head);margin:0 0 8px}
+.addrow{display:flex;gap:10px}
+.addrow input{flex:1}
+.addrow .go{width:auto;margin:0;padding:11px 16px;white-space:nowrap}
+.list{list-style:none;margin:0;padding:0}
+.list li{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 4px;border-bottom:1px solid var(--line)}
+.uname{font-weight:600;overflow-wrap:anywhere}
+.btns{display:flex;gap:8px;flex:none}
+.mini{font:inherit;font-size:.85rem;color:var(--text);background:transparent;border:1px solid var(--line);border-radius:8px;padding:5px 11px;cursor:pointer}
+.mini.primary{background:var(--accent);color:var(--on-accent);border-color:var(--accent);font-weight:600}
+.mini:disabled{opacity:.55;cursor:not-allowed}
+.empty{color:var(--muted);font-size:.92rem;margin:4px 0}
+.center{text-align:center;margin-top:36px}
 .out{font:inherit;color:var(--text);background:transparent;border:1px solid var(--line);border-radius:10px;padding:10px 18px;cursor:pointer}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 [hidden]{display:none !important}
 </style>
 </head>
 <body>
-<main class="card">
+<main class="card" id="card">
   <svg class="logo" width="56" height="56" viewBox="0 0 100 100" aria-hidden="true">
     <circle cx="50" cy="50" r="44" fill="none" stroke="var(--accent)" stroke-width="6"/>
     <circle cx="50" cy="50" r="28" fill="none" stroke="var(--accent)" stroke-width="6" opacity=".6"/>
@@ -75,11 +90,28 @@ input:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline
     </form>
   </section>
 
-  <section id="home" class="hello" hidden>
-    <p class="sub">You are logged in as</p>
-    <p class="name" id="who">@</p>
-    <div class="soon">Friends and chat are coming in the next step.</div>
-    <button class="out" id="logout" type="button">Log out</button>
+  <section id="home" hidden>
+    <div class="hello">
+      <p class="sub">You are logged in as</p>
+      <p class="name" id="who">@</p>
+    </div>
+
+    <h2>Add a friend</h2>
+    <form id="add-form" class="addrow" novalidate>
+      <label class="sr" for="friend-name">Friend's username</label>
+      <input id="friend-name" placeholder="their username" autocapitalize="none" autocomplete="off" spellcheck="false" maxlength="21">
+      <button class="go" type="submit">Send request</button>
+    </form>
+    <p class="msg" id="add-msg" role="status" aria-live="polite"></p>
+
+    <div id="in-box" hidden><h2>Requests for you</h2><ul class="list" id="incoming"></ul></div>
+    <div id="out-box" hidden><h2>Waiting for an answer</h2><ul class="list" id="outgoing"></ul></div>
+
+    <h2>Friends</h2>
+    <ul class="list" id="friends"></ul>
+    <p class="empty" id="no-friends">No friends yet. Send a request using their username.</p>
+
+    <div class="center"><button class="out" id="logout" type="button">Log out</button></div>
   </section>
 
   <p class="sub" id="loading">Loading…</p>
@@ -95,9 +127,14 @@ const EMAIL_DOMAIN = "innercircle-app.com";
 
 const $ = id => document.getElementById(id);
 const USERNAME_RE = /^[a-z0-9_]{3,20}$/;
-let mode = "login";
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+let mode = "login";
+let me = null;            // { id, username } of the logged-in person
+let rows = [];            // friendships and requests that involve me
+let names = {};           // user id -> username
+let channel = null, timer = null;
 
+/* ---------- Sign up / log in ---------- */
 function setMode(m){
   mode = m;
   const signup = m === "signup";
@@ -111,8 +148,8 @@ function setMode(m){
   say("");
 }
 
-function say(text, kind){
-  const m = $("msg");
+function say(text, kind, id){
+  const m = $(id || "msg");
   m.textContent = text;
   m.className = "msg" + (kind ? " " + kind : "");
 }
@@ -160,25 +197,140 @@ async function submit(e){
   }
 }
 
+/* ---------- Friends ---------- */
+function other(r){ return r.requester === me.id ? r.addressee : r.requester; }
+function nameOf(id){ return "@" + (names[id] || "someone"); }
+
+async function loadFriends(){
+  if(!me) return;
+  const { data, error } = await sb.from("friendships")
+    .select("id,requester,addressee,status,created_at").order("created_at", { ascending: false });
+  if(error || !me) return;
+  rows = data || [];
+  const missing = [...new Set(rows.map(other))].filter(id => !names[id]);
+  if(missing.length){
+    const p = await sb.from("profiles").select("id,username").in("id", missing);
+    (p.data || []).forEach(x => { names[x.id] = x.username; });
+  }
+  renderLists();
+}
+
+function mini(text, onClick, primary){
+  const b = document.createElement("button");
+  b.type = "button"; b.textContent = text; b.className = "mini" + (primary ? " primary" : "");
+  b.addEventListener("click", onClick);
+  return b;
+}
+
+function row(r, buttons){
+  const li = document.createElement("li");
+  const n = document.createElement("span"); n.className = "uname"; n.textContent = nameOf(other(r));
+  const box = document.createElement("span"); box.className = "btns";
+  buttons.forEach(b => box.appendChild(b));
+  li.appendChild(n); li.appendChild(box);
+  return li;
+}
+
+function fill(id, list, build){
+  const ul = $(id);
+  ul.textContent = "";
+  list.forEach(r => ul.appendChild(build(r)));
+}
+
+function renderLists(){
+  const incoming = rows.filter(r => r.status === "pending" && r.addressee === me.id);
+  const outgoing = rows.filter(r => r.status === "pending" && r.requester === me.id);
+  const friends = rows.filter(r => r.status === "accepted");
+  $("in-box").hidden = !incoming.length;
+  $("out-box").hidden = !outgoing.length;
+  $("no-friends").hidden = friends.length > 0;
+  fill("incoming", incoming, r => row(r, [mini("Accept", () => accept(r.id), true), mini("Decline", () => remove(r.id))]));
+  fill("outgoing", outgoing, r => row(r, [mini("Cancel", () => remove(r.id))]));
+  fill("friends", friends, r => {
+    const chat = mini("Chat (soon)", () => {}); chat.disabled = true;
+    return row(r, [chat, mini("Remove", () => { if(confirm("Remove " + nameOf(other(r)) + " from your friends?")) remove(r.id); })]);
+  });
+}
+
+async function accept(id){
+  const { error } = await sb.from("friendships").update({ status: "accepted" }).eq("id", id);
+  if(error) say(friendly(error), "err", "add-msg");
+  loadFriends();
+}
+
+async function remove(id){
+  const { error } = await sb.from("friendships").delete().eq("id", id);
+  if(error) say(friendly(error), "err", "add-msg");
+  loadFriends();
+}
+
+async function addFriend(e){
+  e.preventDefault();
+  const out = t => say(t, "err", "add-msg");
+  const name = $("friend-name").value.trim().toLowerCase().replace(/^@/, "");
+  if(!USERNAME_RE.test(name)) return out("Type their username: 3 to 20 lowercase letters, numbers or underscore.");
+  if(name === me.username) return out("That is your own username.");
+  const btn = e.target.querySelector("button"); btn.disabled = true;
+  try{
+    const { data: prof, error } = await sb.from("profiles").select("id,username").eq("username", name).maybeSingle();
+    if(error) return out(friendly(error));
+    if(!prof) return out("No one has that username.");
+    names[prof.id] = prof.username;
+    const old = rows.find(r => other(r) === prof.id);
+    if(old){
+      if(old.status === "accepted") return out("@" + name + " is already your friend.");
+      if(old.requester === me.id) return out("You already sent @" + name + " a request. Wait for their answer.");
+      return out("@" + name + " already sent you a request. Accept it below.");
+    }
+    const ins = await sb.from("friendships").insert({ requester: me.id, addressee: prof.id });
+    if(ins.error){
+      if(ins.error.code === "23505") { await loadFriends(); return out("There is already a request between you and @" + name + "."); }
+      return out(friendly(ins.error));
+    }
+    $("friend-name").value = "";
+    say("Request sent to @" + name + ".", "ok", "add-msg");
+    loadFriends();
+  } finally { btn.disabled = false; }
+}
+
+function startLive(){
+  stopLive();
+  channel = sb.channel("friendships-" + me.id)
+    .on("postgres_changes", { event: "*", schema: "public", table: "friendships" }, () => loadFriends())
+    .subscribe();
+  timer = setInterval(loadFriends, 30000); // backup in case a live update is missed
+}
+function stopLive(){
+  if(channel){ sb.removeChannel(channel); channel = null; }
+  if(timer){ clearInterval(timer); timer = null; }
+}
+
+/* ---------- Screens ---------- */
 async function showFor(session){
   $("loading").hidden = true;
   if(!session){
-    $("home").hidden = true; $("auth").hidden = false;
+    stopLive(); me = null; rows = []; names = {};
+    $("home").hidden = true; $("auth").hidden = false; $("card").classList.remove("wide");
     return;
   }
-  $("auth").hidden = true; $("home").hidden = false;
-  let name = (session.user.user_metadata && session.user.user_metadata.username) || "";
+  if(me && me.id === session.user.id) return; // already showing this person
+  me = { id: session.user.id, username: (session.user.user_metadata && session.user.user_metadata.username) || "" };
+  $("auth").hidden = true; $("home").hidden = false; $("card").classList.add("wide");
+  $("who").textContent = "@" + me.username;
   try{
-    const { data } = await sb.from("profiles").select("username").eq("id", session.user.id).single();
-    if(data && data.username) name = data.username;
+    const { data } = await sb.from("profiles").select("username").eq("id", me.id).single();
+    if(data && data.username){ me.username = data.username; $("who").textContent = "@" + me.username; }
   }catch(e){ /* keep the name we already have */ }
-  $("who").textContent = "@" + name;
+  await loadFriends();
+  startLive();
 }
 
 $("tab-login").addEventListener("click", () => setMode("login"));
 $("tab-signup").addEventListener("click", () => setMode("signup"));
 $("form").addEventListener("submit", submit);
+$("add-form").addEventListener("submit", addFriend);
 $("logout").addEventListener("click", () => sb.auth.signOut());
+document.addEventListener("visibilitychange", () => { if(!document.hidden) loadFriends(); });
 
 sb.auth.onAuthStateChange((_event, session) => { setTimeout(() => showFor(session), 0); });
 sb.auth.getSession().then(({ data }) => showFor(data.session)).catch(() => showFor(null));
