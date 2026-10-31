@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Inner Circle</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><circle cx=%2250%22 cy=%2250%22 r=%2244%22 fill=%22none%22 stroke=%22%23e9a96b%22 stroke-width=%228%22/><circle cx=%2250%22 cy=%2250%22 r=%2220%22 fill=%22%23e9a96b%22/></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3/dist/umd/supabase.js"></script>
+<style>
+:root{
+  --bg:#14120f; --surface:#1e1b16; --line:#34302a; --text:#f1ece4; --muted:#a79f92;
+  --accent:#e9a96b; --on-accent:#1b1408; --error:#ff9b8f; --ok:#9ad6a6;
+  --head:"Fraunces",Georgia,serif;
+  --body:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+@media (prefers-color-scheme: light){
+  :root{--bg:#f6f1ea;--surface:#ffffff;--line:#e0d8cc;--text:#221d17;--muted:#6b6254;--accent:#9a4f12;--on-accent:#ffffff;--error:#b3261e;--ok:#1d6b31}
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.55 var(--body);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px}
+.card{width:100%;max-width:400px}
+.logo{display:block;margin:0 auto 20px}
+h1{font:700 2.4rem/1.1 var(--head);text-align:center;margin:0 0 8px}
+.sub{text-align:center;color:var(--muted);margin:0 0 28px}
+.tabs{display:grid;grid-template-columns:1fr 1fr;border:1px solid var(--line);border-radius:10px;overflow:hidden;margin-bottom:20px}
+.tabs button{font:inherit;font-weight:600;color:var(--muted);background:transparent;border:0;padding:10px;cursor:pointer}
+.tabs button[aria-selected="true"]{background:var(--accent);color:var(--on-accent)}
+label{display:block;font-size:.9rem;color:var(--muted);margin:14px 0 6px}
+input{width:100%;font:inherit;color:var(--text);background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:11px 12px}
+input:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.hint{font-size:.82rem;color:var(--muted);margin:6px 0 0}
+.go{width:100%;margin-top:22px;font:inherit;font-weight:700;color:var(--on-accent);background:var(--accent);border:0;border-radius:10px;padding:12px;cursor:pointer}
+.go:disabled{opacity:.6;cursor:wait}
+.msg{min-height:1.5em;margin:14px 0 0;font-size:.92rem}
+.msg.err{color:var(--error)} .msg.ok{color:var(--ok)}
+.hello{text-align:center}
+.hello .name{font:700 1.6rem var(--head)}
+.soon{margin:24px 0;padding:16px;border:1px dashed var(--line);border-radius:10px;color:var(--muted);text-align:center}
+.out{font:inherit;color:var(--text);background:transparent;border:1px solid var(--line);border-radius:10px;padding:10px 18px;cursor:pointer}
+[hidden]{display:none !important}
+</style>
+</head>
+<body>
+<main class="card">
+  <svg class="logo" width="56" height="56" viewBox="0 0 100 100" aria-hidden="true">
+    <circle cx="50" cy="50" r="44" fill="none" stroke="var(--accent)" stroke-width="6"/>
+    <circle cx="50" cy="50" r="28" fill="none" stroke="var(--accent)" stroke-width="6" opacity=".6"/>
+    <circle cx="50" cy="50" r="12" fill="var(--accent)"/>
+  </svg>
+  <h1>Inner Circle</h1>
+
+  <section id="auth" hidden>
+    <p class="sub">A private place to chat with your friends.</p>
+    <div class="tabs" role="tablist">
+      <button type="button" role="tab" id="tab-login" aria-selected="true">Log in</button>
+      <button type="button" role="tab" id="tab-signup" aria-selected="false">Sign up</button>
+    </div>
+    <form id="form" novalidate>
+      <label for="username">Username</label>
+      <input id="username" autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="20">
+      <p class="hint" id="user-hint" hidden>3 to 20 characters: lowercase letters, numbers and underscore.</p>
+      <label for="password">Password</label>
+      <input id="password" type="password" autocomplete="current-password">
+      <p class="hint" id="pass-hint" hidden>At least 8 characters. If you forget it, it cannot be recovered.</p>
+      <div id="confirm-box" hidden>
+        <label for="password2">Repeat password</label>
+        <input id="password2" type="password" autocomplete="new-password">
+      </div>
+      <button class="go" id="go" type="submit">Log in</button>
+      <p class="msg" id="msg" role="status" aria-live="polite"></p>
+    </form>
+  </section>
+
+  <section id="home" class="hello" hidden>
+    <p class="sub">You are logged in as</p>
+    <p class="name" id="who">@</p>
+    <div class="soon">Friends and chat are coming in the next step.</div>
+    <button class="out" id="logout" type="button">Log out</button>
+  </section>
+
+  <p class="sub" id="loading">Loading…</p>
+</main>
+
+<script>
+// Public values. These are safe to show: security is enforced by rules inside Supabase.
+const SUPABASE_URL = "https://xzyxcacrqhdykqgffdsh.supabase.co";
+const SUPABASE_KEY = "sb_publishable_35-xXOKAzvQ78RSaejAnaA_YPX9Fa4j";
+// People log in with a username. Behind the scenes it becomes an address like name@innercircle-app.com.
+// No email is ever sent to it.
+const EMAIL_DOMAIN = "innercircle-app.com";
+
+const $ = id => document.getElementById(id);
+const USERNAME_RE = /^[a-z0-9_]{3,20}$/;
+let mode = "login";
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+function setMode(m){
+  mode = m;
+  const signup = m === "signup";
+  $("tab-login").setAttribute("aria-selected", String(!signup));
+  $("tab-signup").setAttribute("aria-selected", String(signup));
+  $("go").textContent = signup ? "Create account" : "Log in";
+  $("confirm-box").hidden = !signup;
+  $("user-hint").hidden = !signup;
+  $("pass-hint").hidden = !signup;
+  $("password").autocomplete = signup ? "new-password" : "current-password";
+  say("");
+}
+
+function say(text, kind){
+  const m = $("msg");
+  m.textContent = text;
+  m.className = "msg" + (kind ? " " + kind : "");
+}
+
+function friendly(err){
+  const t = (err && err.message || "").toLowerCase();
+  if(t.includes("invalid login")) return "Wrong username or password.";
+  if(t.includes("already registered") || t.includes("already been registered") || t.includes("duplicate") || t.includes("database error"))
+    return "That username is already taken. Try another one.";
+  if(t.includes("rate limit") || t.includes("too many")) return "Too many tries. Please wait a minute and try again.";
+  if(t.includes("invalid") && t.includes("email")) return "The server refused this username. Please tell the site owner.";
+  if(t.includes("failed to fetch") || t.includes("network")) return "No connection. Check your internet and try again.";
+  return "Something went wrong: " + (err && err.message ? err.message : "unknown error");
+}
+
+async function submit(e){
+  e.preventDefault();
+  const username = $("username").value.trim().toLowerCase();
+  const password = $("password").value;
+  if(!USERNAME_RE.test(username)) return say("Username must be 3 to 20 characters: lowercase letters, numbers or underscore.", "err");
+  if(password.length < 8) return say("Password must be at least 8 characters.", "err");
+  if(mode === "signup" && password !== $("password2").value) return say("The two passwords do not match.", "err");
+
+  const email = username + "@" + EMAIL_DOMAIN;
+  $("go").disabled = true;
+  say(mode === "signup" ? "Creating your account…" : "Logging in…");
+  try{
+    if(mode === "signup"){
+      const { data, error } = await sb.auth.signUp({ email, password, options: { data: { username } } });
+      if(error) throw error;
+      if(!data.session){ // some projects need a separate login after sign up
+        const r = await sb.auth.signInWithPassword({ email, password });
+        if(r.error) throw r.error;
+      }
+    } else {
+      const { error } = await sb.auth.signInWithPassword({ email, password });
+      if(error) throw error;
+    }
+    $("password").value = ""; $("password2").value = "";
+    say("");
+  }catch(err){
+    say(friendly(err), "err");
+  }finally{
+    $("go").disabled = false;
+  }
+}
+
+async function showFor(session){
+  $("loading").hidden = true;
+  if(!session){
+    $("home").hidden = true; $("auth").hidden = false;
+    return;
+  }
+  $("auth").hidden = true; $("home").hidden = false;
+  let name = (session.user.user_metadata && session.user.user_metadata.username) || "";
+  try{
+    const { data } = await sb.from("profiles").select("username").eq("id", session.user.id).single();
+    if(data && data.username) name = data.username;
+  }catch(e){ /* keep the name we already have */ }
+  $("who").textContent = "@" + name;
+}
+
+$("tab-login").addEventListener("click", () => setMode("login"));
+$("tab-signup").addEventListener("click", () => setMode("signup"));
+$("form").addEventListener("submit", submit);
+$("logout").addEventListener("click", () => sb.auth.signOut());
+
+sb.auth.onAuthStateChange((_event, session) => { setTimeout(() => showFor(session), 0); });
+sb.auth.getSession().then(({ data }) => showFor(data.session)).catch(() => showFor(null));
+setMode("login");
+</script>
+</body>
+</html>
