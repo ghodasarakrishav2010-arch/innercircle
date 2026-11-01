@@ -74,6 +74,13 @@ input:focus-visible,textarea:focus-visible,button:focus-visible,summary:focus-vi
 .chathead{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--line)}
 .chathead .uname{font:700 1.2rem var(--head);flex:1}
 .back{display:none}
+.chathead .who{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.25}
+.chathead .who .uname{flex:none}
+.typing{font-size:.85rem;font-weight:600;color:var(--green)}
+.pleft{display:flex;align-items:center;gap:10px;min-width:0}
+.pleft .avatar{width:34px;height:34px;font-size:.9rem}
+.pleft .fname{flex:1}
+.filter{margin:4px 0 6px}
 .verify{padding:0 16px;margin:8px 0 0;font-size:.9rem;color:var(--muted)}
 .verify summary{cursor:pointer}
 .verify .code{font:600 1rem ui-monospace,Menlo,Consolas,monospace;color:var(--text);letter-spacing:.04em;margin:8px 0;overflow-wrap:anywhere}
@@ -168,6 +175,14 @@ input:focus-visible,textarea:focus-visible,button:focus-visible,summary:focus-vi
     <h2>Friends</h2>
     <ul class="list friendlist" id="friends"></ul>
     <p class="empty" id="no-friends">No friends yet. Send a request using their username.</p>
+
+    <h2>People on Inner Circle</h2>
+    <label class="sr" for="people-filter">Filter people</label>
+    <input class="filter" id="people-filter" placeholder="Filter people" autocomplete="off" autocapitalize="none" spellcheck="false">
+    <ul class="list" id="people"></ul>
+    <button class="mini" id="people-more" type="button" hidden>Show more</button>
+    <p class="empty" id="no-people"></p>
+    <p class="msg" id="people-msg" role="status" aria-live="polite"></p>
   </aside>
 
   <section id="pane">
@@ -177,7 +192,7 @@ input:focus-visible,textarea:focus-visible,button:focus-visible,summary:focus-vi
       <header class="chathead">
         <button class="mini back" id="back" type="button" aria-label="Back to friends">&larr;</button>
         <span class="avatar" id="chat-av">?</span>
-        <span class="uname" id="chat-who"></span>
+        <span class="who"><span class="uname" id="chat-who"></span><span class="typing" id="chat-typing" hidden>typing…</span></span>
         <button class="mini" id="chat-remove" type="button">Remove friend</button>
       </header>
       <details class="verify">
@@ -220,6 +235,9 @@ let channel = null, timer = null;
 let privKey = null;       // my private key (never leaves this device unlocked)
 let authBusy = false;     // true while a login or sign up is in progress
 let chat = null;          // the open conversation, if any
+let people = [];          // everyone who has joined (id and username)
+let peopleShown = 20;
+const TYPING_SHOW_MS = 4500, TYPING_SEND_MS = 2500;
 let chatPushed = false;   // on phones the Back button of the phone closes the chat
 const isPhone = () => window.matchMedia && window.matchMedia("(max-width: 799px)").matches;
 const isTouch = () => window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
@@ -505,6 +523,10 @@ async function loadFriends(){
       if(chat) unread[chat.fid] = 0;
     }
   }catch(e){ /* unread counts are optional */ }
+  try{
+    const pp = await sb.from("profiles").select("id,username").order("username").limit(300);
+    if(!pp.error){ people = pp.data || []; people.forEach(x => { names[x.id] = x.username; }); }
+  }catch(e){ /* the people list is optional */ }
   renderLists();
   updateTitle();
   if(chat && !rows.some(r => r.id === chat.fid && r.status === "accepted")){
@@ -565,6 +587,32 @@ function renderLists(){
   fill("incoming", incoming, r => requestRow(r, [mini("Accept", () => accept(r.id), true), mini("Decline", () => remove(r.id))]));
   fill("outgoing", outgoing, r => requestRow(r, [mini("Cancel", () => remove(r.id))]));
   fill("friends", friends, friendRow);
+  renderPeople();
+}
+
+function renderPeople(){
+  if(!me) return;
+  const q = $("people-filter").value.trim().toLowerCase().replace(/^@/, "");
+  const list = people
+    .filter(p => p.id !== me.id && p.username.includes(q))
+    .map(p => ({ p, rel: rows.find(r => other(r) === p.id) }))
+    .filter(x => !x.rel || (x.rel.status === "pending" && x.rel.requester === me.id)); // friends and incoming requests live above
+  const ul = $("people");
+  ul.textContent = "";
+  list.slice(0, peopleShown).forEach(({ p, rel }) => {
+    const li = document.createElement("li");
+    const left = document.createElement("span"); left.className = "pleft";
+    const av = document.createElement("span"); av.className = "avatar"; av.textContent = p.username.charAt(0);
+    const nm = document.createElement("span"); nm.className = "fname"; nm.textContent = "@" + p.username;
+    left.appendChild(av); left.appendChild(nm);
+    const btn = rel ? mini("Requested", () => {}) : mini("Add", () => sendRequest(p, "people-msg"), true);
+    if(rel) btn.disabled = true;
+    li.appendChild(left); li.appendChild(btn);
+    ul.appendChild(li);
+  });
+  $("people-more").hidden = list.length <= peopleShown;
+  $("no-people").hidden = list.length > 0;
+  $("no-people").textContent = q ? "No one matches that." : "No one else to add right now.";
 }
 
 async function accept(id){
@@ -579,6 +627,25 @@ async function remove(id){
   loadFriends();
 }
 
+async function sendRequest(prof, msgId){
+  const out = t => { say(t, "err", msgId); return false; };
+  names[prof.id] = prof.username;
+  const old = rows.find(r => other(r) === prof.id);
+  if(old){
+    if(old.status === "accepted") return out("@" + prof.username + " is already your friend.");
+    if(old.requester === me.id) return out("You already sent @" + prof.username + " a request. Wait for their answer.");
+    return out("@" + prof.username + " already sent you a request. Accept it above.");
+  }
+  const ins = await sb.from("friendships").insert({ requester: me.id, addressee: prof.id });
+  if(ins.error){
+    if(ins.error.code === "23505"){ await loadFriends(); return out("There is already a request between you and @" + prof.username + "."); }
+    return out(friendly(ins.error));
+  }
+  say("Request sent to @" + prof.username + ".", "ok", msgId);
+  await loadFriends();
+  return true;
+}
+
 async function addFriend(e){
   e.preventDefault();
   const out = t => say(t, "err", "add-msg");
@@ -590,21 +657,7 @@ async function addFriend(e){
     const { data: prof, error } = await sb.from("profiles").select("id,username").eq("username", name).maybeSingle();
     if(error) return out(friendly(error));
     if(!prof) return out("No one has that username.");
-    names[prof.id] = prof.username;
-    const old = rows.find(r => other(r) === prof.id);
-    if(old){
-      if(old.status === "accepted") return out("@" + name + " is already your friend.");
-      if(old.requester === me.id) return out("You already sent @" + name + " a request. Wait for their answer.");
-      return out("@" + name + " already sent you a request. Accept it below.");
-    }
-    const ins = await sb.from("friendships").insert({ requester: me.id, addressee: prof.id });
-    if(ins.error){
-      if(ins.error.code === "23505") { await loadFriends(); return out("There is already a request between you and @" + name + "."); }
-      return out(friendly(ins.error));
-    }
-    $("friend-name").value = "";
-    say("Request sent to @" + name + ".", "ok", "add-msg");
-    loadFriends();
+    if(await sendRequest(prof, "add-msg")) $("friend-name").value = "";
   } finally { btn.disabled = false; }
 }
 
@@ -639,8 +692,13 @@ function showHome(){
 }
 
 function closeChat(){
-  if(chat && chat.timer) clearInterval(chat.timer);
+  if(chat){
+    if(chat.timer) clearInterval(chat.timer);
+    if(chat.typing) sb.removeChannel(chat.typing);
+    clearTimeout(chat.typingTimer);
+  }
   chat = null;
+  $("chat-typing").hidden = true;
   $("msgs").textContent = "";
   $("jump").hidden = true;
 }
@@ -687,7 +745,8 @@ function endChat(){ closeChat(); showHome(); loadFriends(); }
 async function startChat(r){
   closeChat();
   const friendId = other(r), friendName = names[friendId] || "friend";
-  chat = { fid: r.id, friendId, friendName, key: null, lastId: 0, markedId: 0, pending: 0, seen: new Set(), timer: null };
+  chat = { fid: r.id, friendId, friendName, key: null, lastId: 0, markedId: 0, pending: 0, seen: new Set(), timer: null,
+           typing: null, typingReady: false, typingSent: 0, typingTimer: null };
   const mine = chat;
   $("empty-pane").hidden = true; $("chat").hidden = false; $("app").classList.add("in-chat");
   $("chat-who").textContent = "@" + friendName;
@@ -713,12 +772,43 @@ async function startChat(r){
   }catch(err){ setNotice("Could not set up encryption: " + friendly(err)); return; }
   if(chat !== mine) return;
   $("draft").disabled = $("send-go").disabled = false;
+  setupTyping(mine);
   await pullMessages(true);
   if(chat !== mine) return;
   const box = $("msgs"); box.scrollTop = box.scrollHeight;
   markRead();
   mine.timer = setInterval(() => pullMessages(false), 8000); // backup in case a live update is missed
   if(!isTouch()) $("draft").focus();
+}
+
+/* "typing..." : a tiny live signal between the two friends. It is never saved and holds no message text. */
+function setupTyping(c){
+  try{
+    c.typing = sb.channel("typing:" + c.fid, { config: { private: true, broadcast: { self: false } } })
+      .on("broadcast", { event: "typing" }, p => onTyping(c, p && p.payload))
+      .subscribe(status => { if(status === "SUBSCRIBED") c.typingReady = true; });
+  }catch(e){ c.typing = null; } // typing is optional: the chat works without it
+}
+
+function onTyping(c, payload){
+  if(chat !== c || !payload || payload.uid !== c.friendId) return;
+  $("chat-typing").hidden = false;
+  clearTimeout(c.typingTimer);
+  c.typingTimer = setTimeout(hideTyping, TYPING_SHOW_MS);
+}
+
+function hideTyping(){
+  $("chat-typing").hidden = true;
+  if(chat) clearTimeout(chat.typingTimer);
+}
+
+function sendTyping(){
+  const c = chat;
+  if(!c || !c.typing || !c.typingReady) return;
+  const now = Date.now();
+  if(now - c.typingSent < TYPING_SEND_MS) return; // at most one signal every few seconds
+  c.typingSent = now;
+  try{ c.typing.send({ type: "broadcast", event: "typing", payload: { uid: me.id } }); }catch(e){}
 }
 
 async function pullMessages(initial){
@@ -751,6 +841,7 @@ async function addMessage(m, quiet){
   div.appendChild(t);
   const after = [...box.children].find(x => Number(x.dataset.id) > m.id); // keep messages in order
   box.insertBefore(div, after || null);
+  if(m.sender !== me.id) hideTyping();
   if(quiet) return; // first load: the caller scrolls down and marks everything read
   if(m.sender === me.id){ box.scrollTop = box.scrollHeight; return; }
   ping();
@@ -771,6 +862,7 @@ async function sendMessage(e){
       .insert({ friendship_id: c.fid, sender: me.id, ciphertext }).select("id,sender,ciphertext,created_at").single();
     if(error) throw error;
     $("draft").value = "";
+    c.typingSent = 0;
     await addMessage(data, false);
   }catch(err){
     say("Could not send: " + friendly(err), "err", "send-msg");
@@ -799,7 +891,7 @@ async function showFor(session){
   $("loading").hidden = true;
   if(authBusy) return;
   if(!session){
-    stopLive(); chatPushed = false; closeChat(); me = null; rows = []; names = {}; unread = {}; privKey = null;
+    stopLive(); chatPushed = false; closeChat(); me = null; rows = []; names = {}; unread = {}; people = []; peopleShown = 20; privKey = null;
     updateTitle(); showHome();
     showCard(true); $("unlock").hidden = true; $("auth").hidden = false;
     return;
@@ -821,6 +913,9 @@ $("form").addEventListener("submit", submit);
 $("unlock-form").addEventListener("submit", unlockSubmit);
 $("add-form").addEventListener("submit", addFriend);
 $("send-form").addEventListener("submit", sendMessage);
+$("draft").addEventListener("input", () => { if($("draft").value.trim()) sendTyping(); });
+$("people-filter").addEventListener("input", () => { peopleShown = 20; renderPeople(); });
+$("people-more").addEventListener("click", () => { peopleShown += 20; renderPeople(); });
 $("draft").addEventListener("keydown", e => {
   // On a computer Enter sends (Shift+Enter = new line). On a phone Enter is a new line.
   if(e.key === "Enter" && !e.shiftKey && !isTouch()){ e.preventDefault(); $("send-form").requestSubmit ? $("send-form").requestSubmit() : sendMessage(e); }
@@ -847,9 +942,6 @@ document.addEventListener("visibilitychange", () => {
 sb.auth.onAuthStateChange((_event, session) => { setTimeout(() => showFor(session), 0); });
 sb.auth.getSession().then(({ data }) => showFor(data.session)).catch(() => showFor(null));
 setMode("login");
-</script>
-</body>
-</html>
 </script>
 </body>
 </html>
