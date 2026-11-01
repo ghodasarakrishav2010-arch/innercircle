@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Inner Circle</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><circle cx=%2250%22 cy=%2250%22 r=%2244%22 fill=%22none%22 stroke=%22%23e9a96b%22 stroke-width=%228%22/><circle cx=%2250%22 cy=%2250%22 r=%2220%22 fill=%22%23e9a96b%22/></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -13,21 +13,21 @@
 :root{
   --bg:#14120f; --surface:#1e1b16; --line:#34302a; --text:#f1ece4; --muted:#a79f92;
   --accent:#e9a96b; --on-accent:#1b1408; --error:#ff9b8f; --ok:#9ad6a6;
+  --green:#2fbf71; --on-green:#06210f;
   --head:"Fraunces",Georgia,serif;
   --body:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
 }
 @media (prefers-color-scheme: light){
-  :root{--bg:#f6f1ea;--surface:#ffffff;--line:#e0d8cc;--text:#221d17;--muted:#6b6254;--accent:#9a4f12;--on-accent:#ffffff;--error:#b3261e;--ok:#1d6b31}
+  :root{--bg:#f6f1ea;--surface:#ffffff;--line:#e0d8cc;--text:#221d17;--muted:#6b6254;--accent:#9a4f12;--on-accent:#ffffff;--error:#b3261e;--ok:#1d6b31;--green:#12803f;--on-green:#ffffff}
 }
 *{box-sizing:border-box}
 html{height:100%}
 body{margin:0;min-height:100%;background:var(--bg);color:var(--text);font:16px/1.55 var(--body);display:flex;padding:24px}
+body.app-mode{padding:0}
 .card{width:100%;max-width:400px;margin:auto}
-.card.wide{max-width:520px}
 .logo{display:block;margin:0 auto 20px}
-.card.chatting .logo,.card.chatting h1{display:none}
 h1{font:700 2.4rem/1.1 var(--head);text-align:center;margin:0 0 8px}
-h2{font:600 1.15rem/1.3 var(--head);margin:28px 0 10px}
+h2{font:600 1.05rem/1.3 var(--head);margin:22px 0 8px}
 .sub{text-align:center;color:var(--muted);margin:0 0 28px}
 .tabs{display:grid;grid-template-columns:1fr 1fr;border:1px solid var(--line);border-radius:10px;overflow:hidden;margin-bottom:20px}
 .tabs button{font:inherit;font-weight:600;color:var(--muted);background:transparent;border:0;padding:10px;cursor:pointer}
@@ -39,40 +39,66 @@ input:focus-visible,textarea:focus-visible,button:focus-visible,summary:focus-vi
 .hint{font-size:.82rem;color:var(--muted);margin:6px 0 0}
 .go{width:100%;margin-top:22px;font:inherit;font-weight:700;color:var(--on-accent);background:var(--accent);border:0;border-radius:10px;padding:12px;cursor:pointer}
 .go:disabled{opacity:.6;cursor:wait}
-.msg{min-height:1.5em;margin:12px 0 0;font-size:.92rem}
+.msg{min-height:1.4em;margin:8px 0 0;font-size:.9rem}
 .msg.err{color:var(--error)} .msg.ok{color:var(--ok)}
-.hello{text-align:center}
-.hello .sub{margin-bottom:4px}
-.hello .name{font:700 1.6rem var(--head);margin:0 0 8px}
-.addrow{display:flex;gap:10px}
-.addrow input{flex:1}
-.addrow .go{width:auto;margin:0;padding:11px 16px;white-space:nowrap}
-.list{list-style:none;margin:0;padding:0}
-.list li{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 4px;border-bottom:1px solid var(--line)}
-.uname{font-weight:600;overflow-wrap:anywhere}
-.btns{display:flex;gap:8px;flex:none}
-.mini{font:inherit;font-size:.85rem;color:var(--text);background:transparent;border:1px solid var(--line);border-radius:8px;padding:5px 11px;cursor:pointer}
-.mini.primary{background:var(--accent);color:var(--on-accent);border-color:var(--accent);font-weight:600}
-.mini:disabled{opacity:.55;cursor:not-allowed}
-.empty{color:var(--muted);font-size:.92rem;margin:4px 0}
 .center{text-align:center;margin-top:36px}
 .out{font:inherit;color:var(--text);background:transparent;border:1px solid var(--line);border-radius:10px;padding:10px 18px;cursor:pointer}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
-.chathead{display:flex;align-items:center;gap:12px;margin-bottom:10px}
-.chathead .uname{font:700 1.3rem var(--head)}
-.verify{margin:0 0 10px;font-size:.9rem;color:var(--muted)}
+.mini{font:inherit;font-size:.85rem;color:var(--text);background:transparent;border:1px solid var(--line);border-radius:8px;padding:5px 11px;cursor:pointer}
+.mini.primary{background:var(--accent);color:var(--on-accent);border-color:var(--accent);font-weight:600}
+.avatar{width:40px;height:40px;border-radius:50%;background:var(--accent);color:var(--on-accent);display:inline-flex;align-items:center;justify-content:center;font-weight:700;text-transform:uppercase;flex:none}
+.uname{font-weight:600;overflow-wrap:anywhere}
+.empty{color:var(--muted);font-size:.92rem;margin:4px 0}
+
+/* ----- app: friends on the left, chat on the right ----- */
+#app{display:flex;width:100%;height:100vh;height:100dvh}
+#side{flex:0 0 25%;min-width:280px;max-width:380px;border-right:1px solid var(--line);display:flex;flex-direction:column;overflow-y:auto;padding:14px 14px 20px}
+#pane{flex:1;min-width:0;display:flex;flex-direction:column;height:100%}
+.me{display:flex;align-items:center;gap:12px}
+.me .uname{font:700 1.2rem var(--head);flex:1}
+.sidebtns{display:flex;gap:8px;margin:10px 0 4px}
+.addrow{display:flex;gap:8px}
+.addrow input{flex:1;min-width:0}
+.addrow .go{width:auto;margin:0;padding:10px 14px;white-space:nowrap}
+.list{list-style:none;margin:0;padding:0}
+.list li{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 4px;border-bottom:1px solid var(--line)}
+.btns{display:flex;gap:8px;flex:none}
+.friendlist li{display:block;padding:2px 0;border:0}
+.friend{display:flex;align-items:center;gap:12px;width:100%;text-align:left;font:inherit;color:inherit;background:transparent;border:0;border-radius:12px;padding:8px;cursor:pointer}
+.friend:hover,.friend.active{background:var(--surface)}
+.fname{font-weight:600;flex:1;overflow-wrap:anywhere}
+.badge{flex:none;background:var(--green);color:var(--on-green);font-size:.78rem;font-weight:700;padding:2px 10px;border-radius:999px}
+.emptypane{margin:auto;text-align:center;color:var(--muted);padding:24px}
+.emptypane strong{display:block;font:600 1.3rem var(--head);color:var(--text);margin-bottom:6px}
+.chatview{display:flex;flex-direction:column;height:100%;min-height:0}
+.chathead{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--line)}
+.chathead .uname{font:700 1.2rem var(--head);flex:1}
+.back{display:none}
+.verify{padding:0 16px;margin:8px 0 0;font-size:.9rem;color:var(--muted)}
 .verify summary{cursor:pointer}
 .verify .code{font:600 1rem ui-monospace,Menlo,Consolas,monospace;color:var(--text);letter-spacing:.04em;margin:8px 0;overflow-wrap:anywhere}
-.notice{padding:10px 12px;border:1px dashed var(--line);border-radius:10px;color:var(--muted);font-size:.9rem;margin-bottom:10px}
-.msgs{height:min(58vh,460px);overflow-y:auto;border:1px solid var(--line);border-radius:12px;padding:12px;background:var(--surface);display:flex;flex-direction:column;gap:8px}
-.bubble{max-width:82%;padding:8px 12px;border-radius:14px;white-space:pre-wrap;overflow-wrap:anywhere}
+.notice{margin:10px 16px 0;padding:10px 12px;border:1px dashed var(--line);border-radius:10px;color:var(--muted);font-size:.9rem}
+.msgwrap{position:relative;flex:1;min-height:0;display:flex;flex-direction:column;margin-top:8px}
+.msgs{flex:1;min-height:0;overflow-y:auto;padding:12px 16px;background:var(--surface);display:flex;flex-direction:column;gap:8px}
+.bubble{max-width:78%;padding:8px 12px;border-radius:14px;white-space:pre-wrap;overflow-wrap:anywhere}
 .bubble.mine{align-self:flex-end;background:var(--accent);color:var(--on-accent);border-bottom-right-radius:4px}
 .bubble.theirs{align-self:flex-start;background:var(--bg);border:1px solid var(--line);border-bottom-left-radius:4px}
 .bubble.bad{font-style:italic;color:var(--muted)}
 .bubble time{display:block;font-size:.72rem;opacity:.7;margin-top:2px}
-.sendrow{display:flex;gap:10px;margin-top:10px;align-items:flex-end}
+.jump{position:absolute;right:16px;bottom:14px;display:flex;align-items:center;gap:6px;font:inherit;font-weight:700;font-size:.9rem;color:var(--on-green);background:var(--green);border:0;border-radius:999px;padding:8px 14px;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.35)}
+.sendrow{display:flex;gap:10px;align-items:flex-end;padding:10px 16px;padding-bottom:calc(10px + env(safe-area-inset-bottom,0px));border-top:1px solid var(--line)}
 .sendrow .go{width:auto;margin:0;padding:11px 18px}
+#send-msg{margin:0 16px 6px}
 [hidden]{display:none !important}
+
+/* ----- phones: one screen at a time ----- */
+@media (max-width:799px){
+  #side{flex:1 1 auto;max-width:none;min-width:0;border-right:0}
+  #pane{display:none}
+  #app.in-chat #side{display:none}
+  #app.in-chat #pane{display:flex}
+  .back{display:inline-block}
+}
 </style>
 </head>
 <body>
@@ -117,17 +143,22 @@ input:focus-visible,textarea:focus-visible,button:focus-visible,summary:focus-vi
     <div class="center"><button class="out" id="unlock-logout" type="button">Log out</button></div>
   </section>
 
-  <section id="home" hidden>
-    <div class="hello">
-      <p class="sub">You are logged in as</p>
-      <p class="name" id="who">@</p>
+  <p class="sub" id="loading">Loading…</p>
+</main>
+
+<div id="app" hidden>
+  <aside id="side">
+    <div class="me"><span class="avatar" id="me-av">?</span><span class="uname" id="who">@</span></div>
+    <div class="sidebtns">
+      <button class="mini" id="sound" type="button">🔔 Sound on</button>
+      <button class="mini" id="logout" type="button">Log out</button>
     </div>
 
     <h2>Add a friend</h2>
     <form id="add-form" class="addrow" novalidate>
       <label class="sr" for="friend-name">Friend's username</label>
       <input id="friend-name" placeholder="their username" autocapitalize="none" autocomplete="off" spellcheck="false" maxlength="21">
-      <button class="go" type="submit">Send request</button>
+      <button class="go" type="submit">Send</button>
     </form>
     <p class="msg" id="add-msg" role="status" aria-live="polite"></p>
 
@@ -135,34 +166,39 @@ input:focus-visible,textarea:focus-visible,button:focus-visible,summary:focus-vi
     <div id="out-box" hidden><h2>Waiting for an answer</h2><ul class="list" id="outgoing"></ul></div>
 
     <h2>Friends</h2>
-    <ul class="list" id="friends"></ul>
+    <ul class="list friendlist" id="friends"></ul>
     <p class="empty" id="no-friends">No friends yet. Send a request using their username.</p>
+  </aside>
 
-    <div class="center"><button class="out" id="logout" type="button">Log out</button></div>
-  </section>
+  <section id="pane">
+    <div class="emptypane" id="empty-pane"><strong>Inner Circle</strong>Pick a friend on the left to start chatting.<br>Your messages are end-to-end encrypted.</div>
 
-  <section id="chat" hidden>
-    <div class="chathead">
-      <button class="mini" id="back" type="button">&larr; Back</button>
-      <span class="uname" id="chat-who"></span>
+    <div class="chatview" id="chat" hidden>
+      <header class="chathead">
+        <button class="mini back" id="back" type="button" aria-label="Back to friends">&larr;</button>
+        <span class="avatar" id="chat-av">?</span>
+        <span class="uname" id="chat-who"></span>
+        <button class="mini" id="chat-remove" type="button">Remove friend</button>
+      </header>
+      <details class="verify">
+        <summary>Check security code</summary>
+        <p class="hint">Compare these numbers with your friend in person or on a call. If they match exactly, nobody is tampering with your chat.</p>
+        <p class="code" id="chat-code">…</p>
+      </details>
+      <div class="notice" id="chat-notice" hidden></div>
+      <div class="msgwrap">
+        <div class="msgs" id="msgs" aria-live="polite"></div>
+        <button class="jump" id="jump" type="button" hidden><span aria-hidden="true">&darr;</span> <span id="jump-n">New</span></button>
+      </div>
+      <form id="send-form" class="sendrow" novalidate>
+        <label class="sr" for="draft">Message</label>
+        <textarea id="draft" rows="2" maxlength="2000" placeholder="Write a message"></textarea>
+        <button class="go" id="send-go" type="submit">Send</button>
+      </form>
+      <p class="msg" id="send-msg" role="status" aria-live="polite"></p>
     </div>
-    <details class="verify">
-      <summary>Check security code</summary>
-      <p class="hint">Compare these numbers with your friend in person or on a call. If they match exactly, nobody is tampering with your chat.</p>
-      <p class="code" id="chat-code">…</p>
-    </details>
-    <div class="notice" id="chat-notice" hidden></div>
-    <div class="msgs" id="msgs" aria-live="polite"></div>
-    <form id="send-form" class="sendrow" novalidate>
-      <label class="sr" for="draft">Message</label>
-      <textarea id="draft" rows="2" maxlength="2000" placeholder="Write a message"></textarea>
-      <button class="go" id="send-go" type="submit">Send</button>
-    </form>
-    <p class="msg" id="send-msg" role="status" aria-live="polite"></p>
   </section>
-
-  <p class="sub" id="loading">Loading…</p>
-</main>
+</div>
 
 <script>
 // Public values. These are safe to show: security is enforced by rules inside Supabase.
@@ -179,10 +215,14 @@ let mode = "login";
 let me = null;            // { id, username } of the logged-in person
 let rows = [];            // friendships and requests that involve me
 let names = {};           // user id -> username
+let unread = {};          // friendship id -> number of unread messages
 let channel = null, timer = null;
 let privKey = null;       // my private key (never leaves this device unlocked)
 let authBusy = false;     // true while a login or sign up is in progress
 let chat = null;          // the open conversation, if any
+let chatPushed = false;   // on phones the Back button of the phone closes the chat
+const isPhone = () => window.matchMedia && window.matchMedia("(max-width: 799px)").matches;
+const isTouch = () => window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
 
 /* =====================================================================
    Encryption
@@ -309,6 +349,35 @@ async function fetchKeys(userId, wrapKey){
   return restorePrivate(data.encrypted_private_key, wrapKey, userId);
 }
 
+/* ---------- Sound and tab title ---------- */
+let audioCtx = null, soundOn = true;
+try{ soundOn = localStorage.getItem("ic-sound") !== "off"; }catch(e){}
+document.addEventListener("pointerdown", () => {
+  try{ audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)(); if(audioCtx.state === "suspended") audioCtx.resume(); }catch(e){}
+}, { once: true });
+
+function ping(){
+  if(!soundOn) return;
+  try{
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    if(audioCtx.state === "suspended") audioCtx.resume();
+    const t = audioCtx.currentTime, o = audioCtx.createOscillator(), g = audioCtx.createGain();
+    o.type = "sine"; o.frequency.value = 880;
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.15, t + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.25);
+    o.connect(g); g.connect(audioCtx.destination);
+    o.start(t); o.stop(t + 0.26);
+  }catch(e){}
+}
+
+function showSoundLabel(){ $("sound").textContent = soundOn ? "🔔 Sound on" : "🔕 Sound off"; }
+
+function updateTitle(){
+  const total = Object.values(unread).reduce((a, b) => a + b, 0);
+  document.title = total ? "(" + total + ") Inner Circle" : "Inner Circle";
+}
+
 /* ---------- Sign up / log in ---------- */
 function setMode(m){
   mode = m;
@@ -405,16 +474,17 @@ async function unlockSubmit(e){
 
 async function logout(){
   const id = me && me.id;
+  chatPushed = false;
   closeChat();
   privKey = null;
   if(id) await forgetKey(id);
   await sb.auth.signOut();
-  setMode("login");
 }
 
 /* ---------- Friends ---------- */
 function other(r){ return r.requester === me.id ? r.addressee : r.requester; }
 function nameOf(id){ return "@" + (names[id] || "someone"); }
+function initial(id){ return (names[id] || "?").charAt(0); }
 
 async function loadFriends(){
   if(!me) return;
@@ -427,11 +497,19 @@ async function loadFriends(){
     const p = await sb.from("profiles").select("id,username").in("id", missing);
     (p.data || []).forEach(x => { names[x.id] = x.username; });
   }
-  if(!me) return; // logged out while loading
+  try{
+    const u = await sb.rpc("unread_counts");
+    if(!u.error){
+      unread = {};
+      (u.data || []).forEach(x => { unread[x.friendship_id] = Number(x.unread); });
+      if(chat) unread[chat.fid] = 0;
+    }
+  }catch(e){ /* unread counts are optional */ }
   renderLists();
+  updateTitle();
   if(chat && !rows.some(r => r.id === chat.fid && r.status === "accepted")){
-    closeChat(); showHome();
-    say("That friendship no longer exists.", "err", "add-msg");
+    chatPushed = false; closeChat(); showHome();
+    say("That chat is no longer available.", "err", "add-msg");
   }
 }
 
@@ -442,12 +520,31 @@ function mini(text, onClick, primary){
   return b;
 }
 
-function row(r, buttons){
+function requestRow(r, buttons){
   const li = document.createElement("li");
   const n = document.createElement("span"); n.className = "uname"; n.textContent = nameOf(other(r));
   const box = document.createElement("span"); box.className = "btns";
   buttons.forEach(b => box.appendChild(b));
   li.appendChild(n); li.appendChild(box);
+  return li;
+}
+
+function friendRow(r){
+  const fid = other(r), n = unread[r.id] || 0;
+  const li = document.createElement("li");
+  const b = document.createElement("button");
+  b.type = "button"; b.className = "friend" + (chat && chat.fid === r.id ? " active" : "");
+  const av = document.createElement("span"); av.className = "avatar"; av.textContent = initial(fid);
+  const nm = document.createElement("span"); nm.className = "fname"; nm.textContent = nameOf(fid);
+  b.appendChild(av); b.appendChild(nm);
+  if(n > 0){
+    const bd = document.createElement("span"); bd.className = "badge";
+    bd.textContent = "↓ " + (n > 99 ? "99+" : n);
+    bd.setAttribute("aria-label", n + " new messages");
+    b.appendChild(bd);
+  }
+  b.addEventListener("click", () => openChat(r));
+  li.appendChild(b);
   return li;
 }
 
@@ -460,16 +557,14 @@ function fill(id, list, build){
 function renderLists(){
   const incoming = rows.filter(r => r.status === "pending" && r.addressee === me.id);
   const outgoing = rows.filter(r => r.status === "pending" && r.requester === me.id);
-  const friends = rows.filter(r => r.status === "accepted");
+  const friends = rows.filter(r => r.status === "accepted")
+    .sort((a, b) => (unread[b.id] || 0) - (unread[a.id] || 0) || nameOf(other(a)).localeCompare(nameOf(other(b))));
   $("in-box").hidden = !incoming.length;
   $("out-box").hidden = !outgoing.length;
   $("no-friends").hidden = friends.length > 0;
-  fill("incoming", incoming, r => row(r, [mini("Accept", () => accept(r.id), true), mini("Decline", () => remove(r.id))]));
-  fill("outgoing", outgoing, r => row(r, [mini("Cancel", () => remove(r.id))]));
-  fill("friends", friends, r => row(r, [
-    mini("Chat", () => openChat(r), true),
-    mini("Remove", () => { if(confirm("Remove " + nameOf(other(r)) + " from your friends? Your chat with them will be deleted.")) remove(r.id); })
-  ]));
+  fill("incoming", incoming, r => requestRow(r, [mini("Accept", () => accept(r.id), true), mini("Decline", () => remove(r.id))]));
+  fill("outgoing", outgoing, r => requestRow(r, [mini("Cancel", () => remove(r.id))]));
+  fill("friends", friends, friendRow);
 }
 
 async function accept(id){
@@ -513,10 +608,12 @@ async function addFriend(e){
   } finally { btn.disabled = false; }
 }
 
+/* One live connection delivers friend changes and new messages for all chats */
 function startLive(){
   stopLive();
-  channel = sb.channel("friendships-" + me.id)
+  channel = sb.channel("inbox-" + me.id)
     .on("postgres_changes", { event: "*", schema: "public", table: "friendships" }, () => loadFriends())
+    .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, p => onIncoming(p.new))
     .subscribe();
   timer = setInterval(loadFriends, 30000); // backup in case a live update is missed
 }
@@ -525,19 +622,27 @@ function stopLive(){
   if(timer){ clearInterval(timer); timer = null; }
 }
 
+async function onIncoming(m){
+  if(!me || !m) return;
+  if(chat && chat.fid === m.friendship_id){ await addMessage(m, false); return; }
+  if(m.sender !== me.id){
+    unread[m.friendship_id] = (unread[m.friendship_id] || 0) + 1;
+    renderLists(); updateTitle(); ping();
+  }
+}
+
 /* ---------- Chat ---------- */
 function showHome(){
-  $("chat").hidden = true; $("home").hidden = false;
-  $("card").classList.remove("chatting");
+  $("chat").hidden = true; $("empty-pane").hidden = false;
+  $("app").classList.remove("in-chat");
+  renderLists();
 }
 
 function closeChat(){
-  if(chat){
-    if(chat.channel) sb.removeChannel(chat.channel);
-    if(chat.timer) clearInterval(chat.timer);
-  }
+  if(chat && chat.timer) clearInterval(chat.timer);
   chat = null;
   $("msgs").textContent = "";
+  $("jump").hidden = true;
 }
 
 function setNotice(text){
@@ -545,17 +650,53 @@ function setNotice(text){
   $("chat-notice").textContent = text || "";
 }
 
-async function openChat(r){
+const nearBottom = () => { const b = $("msgs"); return b.scrollHeight - b.scrollTop - b.clientHeight < 80; };
+
+function showJump(){
+  const c = chat; if(!c) return;
+  $("jump-n").textContent = c.pending > 1 ? c.pending + " new" : "New";
+  $("jump").hidden = false;
+}
+
+async function markRead(){
+  const c = chat; if(!c) return;
+  c.pending = 0; $("jump").hidden = true;
+  if(unread[c.fid]){ unread[c.fid] = 0; renderLists(); updateTitle(); }
+  if(c.lastId > c.markedId){
+    c.markedId = c.lastId;
+    try{ await sb.rpc("mark_read", { fid: c.fid, upto: c.lastId }); }catch(e){ /* retried on next message */ }
+  }
+}
+
+function checkBottom(){
+  if(chat && nearBottom() && document.visibilityState === "visible") markRead();
+}
+
+function openChat(r){
+  if(isPhone() && !(chat && chat.fid === r.id)){ history.pushState({ ic: 1 }, ""); chatPushed = true; }
+  startChat(r);
+}
+
+function leaveChat(){
+  if(chatPushed){ chatPushed = false; history.back(); }   // the popstate handler closes the chat
+  else endChat();
+}
+
+function endChat(){ closeChat(); showHome(); loadFriends(); }
+
+async function startChat(r){
   closeChat();
   const friendId = other(r), friendName = names[friendId] || "friend";
-  chat = { fid: r.id, friendId, friendName, key: null, lastId: 0, seen: new Set(), channel: null, timer: null };
+  chat = { fid: r.id, friendId, friendName, key: null, lastId: 0, markedId: 0, pending: 0, seen: new Set(), timer: null };
   const mine = chat;
-  $("home").hidden = true; $("chat").hidden = false; $("card").classList.add("chatting");
+  $("empty-pane").hidden = true; $("chat").hidden = false; $("app").classList.add("in-chat");
   $("chat-who").textContent = "@" + friendName;
+  $("chat-av").textContent = friendName.charAt(0);
   $("chat-code").textContent = "…";
   $("send-msg").textContent = ""; $("draft").value = "";
   setNotice("");
   $("draft").disabled = $("send-go").disabled = true;
+  renderLists(); // highlights the open friend
 
   const { data: profs, error } = await sb.from("profiles").select("id,public_key").in("id", [me.id, friendId]);
   if(chat !== mine) return;
@@ -563,7 +704,7 @@ async function openChat(r){
   const mineP = (profs || []).find(p => p.id === me.id), theirs = (profs || []).find(p => p.id === friendId);
   if(!theirs || !theirs.public_key || !mineP || !mineP.public_key){
     setNotice("@" + friendName + " has not turned on encryption yet. They need to log in once with the new version. This page will keep checking.");
-    mine.timer = setInterval(() => { if(chat === mine) openChat(r); }, 15000);
+    mine.timer = setInterval(() => { if(chat === mine) startChat(r); }, 15000);
     return;
   }
   try{
@@ -572,25 +713,23 @@ async function openChat(r){
   }catch(err){ setNotice("Could not set up encryption: " + friendly(err)); return; }
   if(chat !== mine) return;
   $("draft").disabled = $("send-go").disabled = false;
-  await pullMessages();
+  await pullMessages(true);
   if(chat !== mine) return;
-  mine.channel = sb.channel("chat-" + r.id)
-    .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages", filter: "friendship_id=eq." + r.id },
-        p => { if(chat === mine) addMessage(p.new); })
-    .subscribe();
-  mine.timer = setInterval(pullMessages, 8000); // backup in case a live update is missed
-  $("draft").focus();
+  const box = $("msgs"); box.scrollTop = box.scrollHeight;
+  markRead();
+  mine.timer = setInterval(() => pullMessages(false), 8000); // backup in case a live update is missed
+  if(!isTouch()) $("draft").focus();
 }
 
-async function pullMessages(){
+async function pullMessages(initial){
   const c = chat; if(!c || !c.key) return;
   const { data, error } = await sb.from("messages").select("id,sender,ciphertext,created_at")
     .eq("friendship_id", c.fid).gt("id", c.lastId).order("id", { ascending: true }).limit(200);
   if(error || chat !== c) return;
-  for(const m of data || []) await addMessage(m);
+  for(const m of data || []) await addMessage(m, !!initial);
 }
 
-async function addMessage(m){
+async function addMessage(m, quiet){
   const c = chat; if(!c || !c.key || c.seen.has(m.id)) return;
   c.seen.add(m.id);
   if(m.id > c.lastId) c.lastId = m.id;
@@ -599,7 +738,7 @@ async function addMessage(m){
   catch(e){ text = "This message could not be unlocked."; bad = true; }
   if(chat !== c) return;
   const box = $("msgs");
-  const nearBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 80;
+  const atBottom = nearBottom();
   const div = document.createElement("div");
   div.className = "bubble " + (m.sender === me.id ? "mine" : "theirs") + (bad ? " bad" : "");
   div.dataset.id = String(m.id);
@@ -612,7 +751,11 @@ async function addMessage(m){
   div.appendChild(t);
   const after = [...box.children].find(x => Number(x.dataset.id) > m.id); // keep messages in order
   box.insertBefore(div, after || null);
-  if(nearBottom || m.sender === me.id) box.scrollTop = box.scrollHeight;
+  if(quiet) return; // first load: the caller scrolls down and marks everything read
+  if(m.sender === me.id){ box.scrollTop = box.scrollHeight; return; }
+  ping();
+  if(atBottom && document.visibilityState === "visible"){ box.scrollTop = box.scrollHeight; markRead(); }
+  else { c.pending++; showJump(); }
 }
 
 async function sendMessage(e){
@@ -628,18 +771,26 @@ async function sendMessage(e){
       .insert({ friendship_id: c.fid, sender: me.id, ciphertext }).select("id,sender,ciphertext,created_at").single();
     if(error) throw error;
     $("draft").value = "";
-    await addMessage(data);
+    await addMessage(data, false);
   }catch(err){
     say("Could not send: " + friendly(err), "err", "send-msg");
   }finally{
     if(chat === c) $("send-go").disabled = false;
-    $("draft").focus();
+    if(!isTouch()) $("draft").focus();
   }
 }
 
 /* ---------- Screens ---------- */
+function showCard(on){
+  $("card").hidden = !on; $("app").hidden = on;
+  document.body.classList.toggle("app-mode", !on);
+}
+
 async function enterHome(){
-  $("auth").hidden = true; $("unlock").hidden = true; $("home").hidden = false; $("card").classList.add("wide");
+  $("auth").hidden = true; $("unlock").hidden = true;
+  $("who").textContent = "@" + me.username; $("me-av").textContent = me.username.charAt(0) || "?";
+  showCard(false);
+  showSoundLabel();
   await loadFriends();
   startLive();
 }
@@ -648,21 +799,19 @@ async function showFor(session){
   $("loading").hidden = true;
   if(authBusy) return;
   if(!session){
-    stopLive(); closeChat(); me = null; rows = []; names = {}; privKey = null;
-    $("home").hidden = true; $("chat").hidden = true; $("unlock").hidden = true; $("auth").hidden = false;
-    $("card").classList.remove("wide", "chatting");
+    stopLive(); chatPushed = false; closeChat(); me = null; rows = []; names = {}; unread = {}; privKey = null;
+    updateTitle(); showHome();
+    showCard(true); $("unlock").hidden = true; $("auth").hidden = false;
     return;
   }
   if(me && me.id === session.user.id) return; // already showing this person
   me = { id: session.user.id, username: (session.user.user_metadata && session.user.user_metadata.username) || "" };
-  $("auth").hidden = true; $("card").classList.add("wide");
-  $("who").textContent = "@" + me.username;
   try{
     const { data } = await sb.from("profiles").select("username").eq("id", me.id).single();
-    if(data && data.username){ me.username = data.username; $("who").textContent = "@" + me.username; }
+    if(data && data.username) me.username = data.username;
   }catch(e){ /* keep the name we already have */ }
   if(!privKey) privKey = await loadKey(me.id);
-  if(!privKey){ $("unlock").hidden = false; $("card").classList.remove("wide"); return; }
+  if(!privKey){ showCard(true); $("auth").hidden = true; $("unlock").hidden = false; return; }
   await enterHome();
 }
 
@@ -672,15 +821,35 @@ $("form").addEventListener("submit", submit);
 $("unlock-form").addEventListener("submit", unlockSubmit);
 $("add-form").addEventListener("submit", addFriend);
 $("send-form").addEventListener("submit", sendMessage);
-$("draft").addEventListener("keydown", e => { if(e.key === "Enter" && !e.shiftKey){ e.preventDefault(); $("send-form").requestSubmit ? $("send-form").requestSubmit() : sendMessage(e); } });
-$("back").addEventListener("click", () => { closeChat(); showHome(); loadFriends(); });
+$("draft").addEventListener("keydown", e => {
+  // On a computer Enter sends (Shift+Enter = new line). On a phone Enter is a new line.
+  if(e.key === "Enter" && !e.shiftKey && !isTouch()){ e.preventDefault(); $("send-form").requestSubmit ? $("send-form").requestSubmit() : sendMessage(e); }
+});
+$("back").addEventListener("click", leaveChat);
+$("chat-remove").addEventListener("click", () => {
+  if(chat && confirm("Remove @" + chat.friendName + " from your friends? Your chat with them will be deleted.")) remove(chat.fid);
+});
+$("jump").addEventListener("click", () => { const b = $("msgs"); b.scrollTop = b.scrollHeight; markRead(); });
+$("msgs").addEventListener("scroll", checkBottom);
+$("sound").addEventListener("click", () => {
+  soundOn = !soundOn;
+  try{ localStorage.setItem("ic-sound", soundOn ? "on" : "off"); }catch(e){}
+  showSoundLabel();
+  if(soundOn) ping();
+});
 $("logout").addEventListener("click", logout);
 $("unlock-logout").addEventListener("click", logout);
-document.addEventListener("visibilitychange", () => { if(!document.hidden){ loadFriends(); pullMessages(); } });
+window.addEventListener("popstate", () => { chatPushed = false; if(chat) endChat(); });
+document.addEventListener("visibilitychange", () => {
+  if(!document.hidden){ loadFriends(); if(chat){ pullMessages(false); checkBottom(); } }
+});
 
 sb.auth.onAuthStateChange((_event, session) => { setTimeout(() => showFor(session), 0); });
 sb.auth.getSession().then(({ data }) => showFor(data.session)).catch(() => showFor(null));
 setMode("login");
+</script>
+</body>
+</html>
 </script>
 </body>
 </html>
