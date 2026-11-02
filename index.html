@@ -13,12 +13,12 @@
 :root{
   --bg:#14120f; --surface:#1e1b16; --line:#34302a; --text:#f1ece4; --muted:#a79f92;
   --accent:#e9a96b; --on-accent:#1b1408; --error:#ff9b8f; --ok:#9ad6a6;
-  --green:#2fbf71; --on-green:#06210f;
+  --green:#2fbf71; --on-green:#06210f; --tick-read:#0b57d0;
   --head:"Fraunces",Georgia,serif;
   --body:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
 }
 @media (prefers-color-scheme: light){
-  :root{--bg:#f6f1ea;--surface:#ffffff;--line:#e0d8cc;--text:#221d17;--muted:#6b6254;--accent:#9a4f12;--on-accent:#ffffff;--error:#b3261e;--ok:#1d6b31;--green:#12803f;--on-green:#ffffff}
+  :root{--bg:#f6f1ea;--surface:#ffffff;--line:#e0d8cc;--text:#221d17;--muted:#6b6254;--accent:#9a4f12;--on-accent:#ffffff;--error:#b3261e;--ok:#1d6b31;--green:#12803f;--on-green:#ffffff;--tick-read:#a8d4ff}
 }
 *{box-sizing:border-box}
 html{height:100%}
@@ -91,7 +91,17 @@ input:focus-visible,textarea:focus-visible,button:focus-visible,summary:focus-vi
 .bubble.mine{align-self:flex-end;background:var(--accent);color:var(--on-accent);border-bottom-right-radius:4px}
 .bubble.theirs{align-self:flex-start;background:var(--bg);border:1px solid var(--line);border-bottom-left-radius:4px}
 .bubble.bad{font-style:italic;color:var(--muted)}
-.bubble time{display:block;font-size:.72rem;opacity:.7;margin-top:2px}
+.bubble .meta{display:flex;justify-content:flex-end;align-items:center;gap:5px;margin-top:2px}
+.bubble time{font-size:.72rem;opacity:.7}
+.ticks{font-size:.78rem;font-weight:700;letter-spacing:-2px;opacity:.65}
+.ticks.read{color:var(--tick-read);opacity:1}
+.typing.online{color:var(--muted);font-weight:500}
+.avatar{position:relative}
+.dot{position:absolute;right:-1px;bottom:-1px;width:12px;height:12px;border-radius:50%;background:var(--green);border:2px solid var(--bg)}
+.settings{margin:12px 0 0;padding:10px 12px;border:1px solid var(--line);border-radius:10px}
+.check{display:flex;align-items:center;gap:10px;margin:0 0 6px;font-size:.92rem;color:var(--text);cursor:pointer}
+.check input{width:auto;margin:0}
+.settings .hint{margin:4px 0 0}
 .jump{position:absolute;right:16px;bottom:14px;display:flex;align-items:center;gap:6px;font:inherit;font-weight:700;font-size:.9rem;color:var(--on-green);background:var(--green);border:0;border-radius:999px;padding:8px 14px;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.35)}
 .sendrow{display:flex;gap:10px;align-items:flex-end;padding:10px 16px;padding-bottom:calc(10px + env(safe-area-inset-bottom,0px));border-top:1px solid var(--line)}
 .sendrow .go{width:auto;margin:0;padding:11px 18px}
@@ -159,6 +169,11 @@ input:focus-visible,textarea:focus-visible,button:focus-visible,summary:focus-vi
     <div class="sidebtns">
       <button class="mini" id="sound" type="button">🔔 Sound on</button>
       <button class="mini" id="logout" type="button">Log out</button>
+    </div>
+    <div class="settings">
+      <label class="check"><input type="checkbox" id="opt-online" checked> Show when I am online</label>
+      <label class="check"><input type="checkbox" id="opt-receipts" checked> Send read receipts</label>
+      <p class="hint">If you turn one off, you will not see it for your friends either.</p>
     </div>
 
     <h2>Add a friend</h2>
@@ -236,6 +251,9 @@ let privKey = null;       // my private key (never leaves this device unlocked)
 let authBusy = false;     // true while a login or sign up is in progress
 let chat = null;          // the open conversation, if any
 let people = [];          // everyone who has joined (id and username)
+let links = {};           // friendship id -> live link with that friend (typing, online, ticks)
+let settings = { showOnline: true, readReceipts: true };
+let deliveredUpTo = {};   // friendship id -> last message id I told the server I received
 let peopleShown = 20;
 const TYPING_SHOW_MS = 4500, TYPING_SEND_MS = 2500;
 let chatPushed = false;   // on phones the Back button of the phone closes the chat
@@ -527,6 +545,8 @@ async function loadFriends(){
     const pp = await sb.from("profiles").select("id,username").order("username").limit(300);
     if(!pp.error){ people = pp.data || []; people.forEach(x => { names[x.id] = x.username; }); }
   }catch(e){ /* the people list is optional */ }
+  syncLinks();
+  try{ sb.rpc("mark_all_delivered").then(() => {}, () => {}); }catch(e){}
   renderLists();
   updateTitle();
   if(chat && !rows.some(r => r.id === chat.fid && r.status === "accepted")){
@@ -558,6 +578,8 @@ function friendRow(r){
   b.type = "button"; b.className = "friend" + (chat && chat.fid === r.id ? " active" : "");
   const av = document.createElement("span"); av.className = "avatar"; av.textContent = initial(fid);
   const nm = document.createElement("span"); nm.className = "fname"; nm.textContent = nameOf(fid);
+  const L = links[r.id];
+  if(L && L.online && settings.showOnline){ const dt = document.createElement("span"); dt.className = "dot"; dt.title = "online"; av.appendChild(dt); }
   b.appendChild(av); b.appendChild(nm);
   if(n > 0){
     const bd = document.createElement("span"); bd.className = "badge";
@@ -677,6 +699,7 @@ function stopLive(){
 
 async function onIncoming(m){
   if(!me || !m) return;
+  if(m.sender !== me.id) markDelivered(m.friendship_id, m.id);
   if(chat && chat.fid === m.friendship_id){ await addMessage(m, false); return; }
   if(m.sender !== me.id){
     unread[m.friendship_id] = (unread[m.friendship_id] || 0) + 1;
@@ -694,8 +717,6 @@ function showHome(){
 function closeChat(){
   if(chat){
     if(chat.timer) clearInterval(chat.timer);
-    if(chat.typing) sb.removeChannel(chat.typing);
-    clearTimeout(chat.typingTimer);
   }
   chat = null;
   $("chat-typing").hidden = true;
@@ -723,6 +744,7 @@ async function markRead(){
   if(c.lastId > c.markedId){
     c.markedId = c.lastId;
     try{ await sb.rpc("mark_read", { fid: c.fid, upto: c.lastId }); }catch(e){ /* retried on next message */ }
+    sendReceipt(c.fid, settings.readReceipts ? { delivered: c.lastId, read: c.lastId } : { delivered: c.lastId });
   }
 }
 
@@ -746,11 +768,12 @@ async function startChat(r){
   closeChat();
   const friendId = other(r), friendName = names[friendId] || "friend";
   chat = { fid: r.id, friendId, friendName, key: null, lastId: 0, markedId: 0, pending: 0, seen: new Set(), timer: null,
-           typing: null, typingReady: false, typingSent: 0, typingTimer: null };
+           recv: { delivered: 0, read: 0 } };
   const mine = chat;
   $("empty-pane").hidden = true; $("chat").hidden = false; $("app").classList.add("in-chat");
   $("chat-who").textContent = "@" + friendName;
   $("chat-av").textContent = friendName.charAt(0);
+  updateSub();
   $("chat-code").textContent = "…";
   $("send-msg").textContent = ""; $("draft").value = "";
   setNotice("");
@@ -772,43 +795,161 @@ async function startChat(r){
   }catch(err){ setNotice("Could not set up encryption: " + friendly(err)); return; }
   if(chat !== mine) return;
   $("draft").disabled = $("send-go").disabled = false;
-  setupTyping(mine);
   await pullMessages(true);
+  if(chat !== mine) return;
+  await loadReceipts();
   if(chat !== mine) return;
   const box = $("msgs"); box.scrollTop = box.scrollHeight;
   markRead();
-  mine.timer = setInterval(() => pullMessages(false), 8000); // backup in case a live update is missed
+  mine.timer = setInterval(() => { pullMessages(false); loadReceipts(); }, 8000); // backup in case a live update is missed
   if(!isTouch()) $("draft").focus();
 }
 
-/* "typing..." : a tiny live signal between the two friends. It is never saved and holds no message text. */
-function setupTyping(c){
+/* ---------- Live link with each friend: typing, online status and ticks ----------
+   One private live channel per friendship carries tiny signals. They are never saved and hold no message text. */
+function syncLinks(){
+  const accepted = rows.filter(r => r.status === "accepted");
+  const want = new Set(accepted.map(r => r.id));
+  Object.keys(links).forEach(fid => { if(!want.has(fid)) closeLink(fid); });
+  accepted.forEach(r => { if(!links[r.id]) openLink(r); });
+}
+
+function openLink(r){
+  const L = { fid: r.id, friendId: other(r), ch: null, ready: false, online: false, typing: false, typingTimer: null, typingSent: 0 };
+  links[r.id] = L;
   try{
-    c.typing = sb.channel("typing:" + c.fid, { config: { private: true, broadcast: { self: false } } })
-      .on("broadcast", { event: "typing" }, p => onTyping(c, p && p.payload))
-      .subscribe(status => { if(status === "SUBSCRIBED") c.typingReady = true; });
-  }catch(e){ c.typing = null; } // typing is optional: the chat works without it
+    const ch = sb.channel("typing:" + r.id, { config: { private: true, broadcast: { self: false }, presence: { key: me.id } } });
+    L.ch = ch;
+    ch.on("broadcast", { event: "typing" }, p => onTyping(L, p && p.payload))
+      .on("broadcast", { event: "receipt" }, p => onReceipt(L, p && p.payload))
+      .on("presence", { event: "sync" }, () => onPresence(L))
+      .subscribe(status => {
+        if(status === "SUBSCRIBED"){ L.ready = true; if(settings.showOnline) trackPresence(L); }
+      });
+  }catch(e){ L.ch = null; } // live signals are optional: the chat works without them
 }
 
-function onTyping(c, payload){
-  if(chat !== c || !payload || payload.uid !== c.friendId) return;
-  $("chat-typing").hidden = false;
-  clearTimeout(c.typingTimer);
-  c.typingTimer = setTimeout(hideTyping, TYPING_SHOW_MS);
+function trackPresence(L){ try{ L.ch.track({ uid: me.id, at: Date.now() }); }catch(e){} }
+
+function closeLink(fid){
+  const L = links[fid]; if(!L) return;
+  clearTimeout(L.typingTimer);
+  if(L.ch){ try{ sb.removeChannel(L.ch); }catch(e){} }
+  delete links[fid];
+}
+function closeAllLinks(){ Object.keys(links).forEach(closeLink); }
+
+function onPresence(L){
+  let on = false;
+  try{ on = !!(L.ch.presenceState()[L.friendId]); }catch(e){}
+  if(on === L.online) return;
+  L.online = on;
+  renderLists(); updateSub();
 }
 
-function hideTyping(){
-  $("chat-typing").hidden = true;
-  if(chat) clearTimeout(chat.typingTimer);
+/* The line under the friend's name at the top of the chat: typing..., online, or nothing */
+function updateSub(){
+  const el = $("chat-typing"), L = chat && links[chat.fid];
+  if(!L){ el.hidden = true; return; }
+  if(L.typing){ el.textContent = "typing…"; el.className = "typing"; el.hidden = false; }
+  else if(L.online && settings.showOnline){ el.textContent = "online"; el.className = "typing online"; el.hidden = false; }
+  else el.hidden = true;
+}
+
+function onTyping(L, payload){
+  if(!payload || payload.uid !== L.friendId) return;
+  L.typing = true;
+  clearTimeout(L.typingTimer);
+  L.typingTimer = setTimeout(() => { L.typing = false; updateSub(); }, TYPING_SHOW_MS);
+  updateSub();
+}
+
+function clearTypingOf(fid){
+  const L = links[fid]; if(!L) return;
+  L.typing = false; clearTimeout(L.typingTimer); updateSub();
 }
 
 function sendTyping(){
-  const c = chat;
-  if(!c || !c.typing || !c.typingReady) return;
+  const L = chat && links[chat.fid];
+  if(!L || !L.ready) return;
   const now = Date.now();
-  if(now - c.typingSent < TYPING_SEND_MS) return; // at most one signal every few seconds
-  c.typingSent = now;
-  try{ c.typing.send({ type: "broadcast", event: "typing", payload: { uid: me.id } }); }catch(e){}
+  if(now - L.typingSent < TYPING_SEND_MS) return; // at most one signal every few seconds
+  L.typingSent = now;
+  try{ L.ch.send({ type: "broadcast", event: "typing", payload: { uid: me.id } }); }catch(e){}
+}
+
+/* ---------- Ticks: sent, delivered, read ---------- */
+function sendReceipt(fid, payload){
+  const L = links[fid];
+  if(!L || !L.ready) return;
+  try{ L.ch.send({ type: "broadcast", event: "receipt", payload: Object.assign({ uid: me.id }, payload) }); }catch(e){}
+}
+
+function onReceipt(L, p){
+  if(!p || p.uid !== L.friendId || !chat || chat.fid !== L.fid) return;
+  if(p.delivered) chat.recv.delivered = Math.max(chat.recv.delivered, Number(p.delivered));
+  if(p.read && settings.readReceipts) chat.recv.read = Math.max(chat.recv.read, Number(p.read));
+  applyTicks();
+}
+
+async function loadReceipts(){
+  const c = chat; if(!c) return;
+  try{
+    const { data, error } = await sb.rpc("friend_receipts");
+    if(error || chat !== c) return;
+    const x = (data || []).find(r => r.friendship_id === c.fid);
+    if(!x) return;
+    c.recv.delivered = Math.max(c.recv.delivered, Number(x.delivered_id) || 0);
+    c.recv.read = x.read_id == null ? 0 : Math.max(c.recv.read, Number(x.read_id));
+    applyTicks();
+  }catch(e){ /* ticks are optional */ }
+}
+
+function applyTicks(){
+  const c = chat; if(!c) return;
+  $("msgs").querySelectorAll(".bubble.mine .ticks").forEach(t => {
+    const id = Number(t.parentNode.parentNode.dataset.id);
+    const st = c.recv.read >= id ? "read" : c.recv.delivered >= id ? "delivered" : "sent";
+    t.textContent = st === "sent" ? "✓" : "✓✓";
+    t.className = "ticks " + st;
+    const label = st === "sent" ? "Sent" : st === "delivered" ? "Delivered" : "Read";
+    t.setAttribute("aria-label", label); t.title = label;
+  });
+}
+
+/* This device has received a message: tell the server and the sender */
+function markDelivered(fid, id){
+  if(!me || id <= (deliveredUpTo[fid] || 0)) return;
+  deliveredUpTo[fid] = id;
+  try{ sb.rpc("mark_delivered", { fid, upto: id }).then(() => {}, () => {}); }catch(e){}
+  sendReceipt(fid, { delivered: id });
+}
+
+/* ---------- Privacy switches ---------- */
+async function loadSettings(){
+  try{
+    const { data } = await sb.from("profiles").select("show_online,read_receipts").eq("id", me.id).single();
+    if(data){ settings.showOnline = data.show_online !== false; settings.readReceipts = data.read_receipts !== false; }
+  }catch(e){ /* defaults stay on */ }
+  $("opt-online").checked = settings.showOnline;
+  $("opt-receipts").checked = settings.readReceipts;
+}
+
+async function saveSetting(key, column, value){
+  settings[key] = value;
+  try{ await sb.from("profiles").update({ [column]: value }).eq("id", me.id); }catch(e){}
+}
+
+function onOnlineToggle(){
+  const on = $("opt-online").checked;
+  saveSetting("showOnline", "show_online", on);
+  Object.values(links).forEach(L => { try{ if(on) trackPresence(L); else L.ch.untrack(); }catch(e){} });
+  renderLists(); updateSub();
+}
+
+async function onReceiptsToggle(){
+  await saveSetting("readReceipts", "read_receipts", $("opt-receipts").checked);
+  if(chat){ chat.recv.read = 0; loadReceipts(); }
 }
 
 async function pullMessages(initial){
@@ -838,10 +979,13 @@ async function addMessage(m, quiet){
   t.textContent = isNaN(d) ? "" : (d.toDateString() === new Date().toDateString()
     ? d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
     : d.toLocaleDateString([], { day: "numeric", month: "short" }) + " " + d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
-  div.appendChild(t);
+  const meta = document.createElement("div"); meta.className = "meta"; meta.appendChild(t);
+  if(m.sender === me.id){ const k = document.createElement("span"); k.className = "ticks sent"; k.textContent = "✓"; k.title = "Sent"; meta.appendChild(k); }
+  div.appendChild(meta);
   const after = [...box.children].find(x => Number(x.dataset.id) > m.id); // keep messages in order
   box.insertBefore(div, after || null);
-  if(m.sender !== me.id) hideTyping();
+  if(m.sender === me.id) applyTicks();
+  if(m.sender !== me.id) clearTypingOf(c.fid);
   if(quiet) return; // first load: the caller scrolls down and marks everything read
   if(m.sender === me.id){ box.scrollTop = box.scrollHeight; return; }
   ping();
@@ -862,7 +1006,7 @@ async function sendMessage(e){
       .insert({ friendship_id: c.fid, sender: me.id, ciphertext }).select("id,sender,ciphertext,created_at").single();
     if(error) throw error;
     $("draft").value = "";
-    c.typingSent = 0;
+    { const L = links[c.fid]; if(L) L.typingSent = 0; }
     await addMessage(data, false);
   }catch(err){
     say("Could not send: " + friendly(err), "err", "send-msg");
@@ -883,6 +1027,7 @@ async function enterHome(){
   $("who").textContent = "@" + me.username; $("me-av").textContent = me.username.charAt(0) || "?";
   showCard(false);
   showSoundLabel();
+  await loadSettings();
   await loadFriends();
   startLive();
 }
@@ -891,7 +1036,7 @@ async function showFor(session){
   $("loading").hidden = true;
   if(authBusy) return;
   if(!session){
-    stopLive(); chatPushed = false; closeChat(); me = null; rows = []; names = {}; unread = {}; people = []; peopleShown = 20; privKey = null;
+    stopLive(); chatPushed = false; closeChat(); closeAllLinks(); deliveredUpTo = {}; me = null; rows = []; names = {}; unread = {}; people = []; peopleShown = 20; privKey = null;
     updateTitle(); showHome();
     showCard(true); $("unlock").hidden = true; $("auth").hidden = false;
     return;
@@ -915,6 +1060,8 @@ $("add-form").addEventListener("submit", addFriend);
 $("send-form").addEventListener("submit", sendMessage);
 $("draft").addEventListener("input", () => { if($("draft").value.trim()) sendTyping(); });
 $("people-filter").addEventListener("input", () => { peopleShown = 20; renderPeople(); });
+$("opt-online").addEventListener("change", onOnlineToggle);
+$("opt-receipts").addEventListener("change", onReceiptsToggle);
 $("people-more").addEventListener("click", () => { peopleShown += 20; renderPeople(); });
 $("draft").addEventListener("keydown", e => {
   // On a computer Enter sends (Shift+Enter = new line). On a phone Enter is a new line.
